@@ -46,6 +46,7 @@ class DefaultFirebaseOptions {
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyDrQ0vzBoLxzdXUXp-D-nDoTJZUfGHzTnY',
     appId: '1:418538925928:web:c4fc9e2d255fb483c430dd',
+    databaseURL: "https://emartbtechproject-default-rtdb.firebaseio.com",
     messagingSenderId: '418538925928',
     projectId: 'emartbtechproject',
     authDomain: 'emartbtechproject.firebaseapp.com',
