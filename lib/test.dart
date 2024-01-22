@@ -3,53 +3,53 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-Future<BranchStudyMaterialsConvertor?> getBranchStudyMaterials(
-    String branch, bool isLoading) async {
-  SharedPreferences prefs = await SharedPreferences.getInstance();
-  final studyMaterialsJson = await prefs.getString("products");
 
-  if (studyMaterialsJson == null || isLoading) {
+class subjectConvertor {
+  final String barCode, id;
+  final String projectName, image, address;
+  double weight, discount, price;
+  int quantity;
 
-    try {
-      var documentSnapshot = await FirebaseFirestore.instance
-          .collection("products")
-          .doc(branch)
-          .get();
-      if (documentSnapshot.exists) {
+  subjectConvertor({
+    required this.barCode,
+    required this.id,
+    required this.image,
+    required this.address,
+    required this.discount,
+    required this.price,
+    required this.quantity,
+    required this.weight,
+    required this.projectName,
+  });
 
-        var documentData = documentSnapshot.data();
-        try {
-          final subjectsQuery =
-          await documentSnapshot.reference.collection("products").get();
+  Map<String, dynamic> toJson() => {
+    "id": id,
+    "barCode": barCode,
+    "image": image,
+    "address": address,
+    "projectName": projectName,
+    "discount": discount,
+    "quantity": quantity,
+    "weight": weight,
+    "price": price,
+  };
 
 
-          final subjects = await subjectsQuery.docs
-              .map((doc) => subjectConvertor.fromJson(doc.data()))
-              .toList();
+  static subjectConvertor fromJson(Map<String, dynamic> json) => subjectConvertor(
+    id: json['id'] ?? "",
+    address: json['address'] ?? "",
+    barCode: json['barCode'] ?? "",
+    weight: (json['weight'] ?? 0).toDouble(), // Convert to double
+    image: json['image'] ?? "",
+    projectName: json['projectName'] ?? "",
+    quantity: json['quantity'] ?? 0,
+    price: (json['price'] ?? 0).toDouble(), // Convert to double
+    discount: (json['discount'] ?? 0).toDouble(), // Convert to double
+  );
 
-          final data = await BranchStudyMaterialsConvertor(
-            subjects: subjects,
 
-          );
-
-          String studyMaterialsJson = await json.encode(data.toJson());
-          await prefs.setString("products", studyMaterialsJson);
-          return data;
-        } catch (e) {
-          print("Error processing data: $e");
-          return null;
-        }
-      } else {
-        return null;
-      }
-    } catch (e) {
-      print("Error getting study materials: $e");
-      return null;
-    }
-  }
-  else {
-    return await BranchStudyMaterialsConvertor.fromJson(
-        json.decode(studyMaterialsJson));
+  static List<subjectConvertor> fromMapList(List<dynamic> list) {
+    return list.map((item) => fromJson(item)).toList();
   }
 }
 
@@ -87,77 +87,5 @@ class CartPreferences {
     List<subjectConvertor> subjects = await get();
     subjects.removeWhere((subject) => subject.barCode == subjectId);
     await save(subjects);
-  }
-}
-
-
-class BranchStudyMaterialsConvertor {
-  List<subjectConvertor> subjects;
-
-
-  BranchStudyMaterialsConvertor({
-    required this.subjects,
-
-  });
-
-  Map<String, dynamic> toJson() => {
-    "Subjects": subjects.map((subject) => subject.toJson()).toList(),
-
-  };
-
-  static BranchStudyMaterialsConvertor fromJson(Map<String, dynamic> json) =>
-      BranchStudyMaterialsConvertor(
-        subjects: (json['Subjects'] as List<dynamic>?)
-            ?.map((item) => subjectConvertor.fromJson(item))
-            .toList() ??
-            [],
-
-      );
-
-  static List<BranchStudyMaterialsConvertor> fromMapList(List<dynamic> list) {
-    return list.map((item) => fromJson(item)).toList();
-  }
-}
-class subjectConvertor {
-  final String barCode;
-  final String projectName;
-  double weight,discount,totalPrice;
-  int quantity;
-
-  subjectConvertor({
-    required this.barCode,
-    required this.discount,
-    required this.totalPrice,
-    required this.quantity,
-    required this.weight,
-    required this.projectName,
-  });
-
-  Map<String, dynamic> toJson() => {
-    "barCode": barCode,
-    "projectName": projectName,
-    "discount": discount,
-    "quantity": quantity,
-    "weight": weight,
-    "totalPrice": totalPrice,
-
-
-  };
-
-
-  static subjectConvertor fromJson(Map<String, dynamic> json) =>
-      subjectConvertor(
-        barCode: json['id'] ?? "",
-        weight: json['weight']??"",
-
-        projectName: json['projectName'] ?? "",
-        quantity: json['quantity'] ?? "",
-        totalPrice: json['totalPrice'] ?? "",
-        discount: json['discount'] ?? "",
-
-      );
-
-  static List<subjectConvertor> fromMapList(List<dynamic> list) {
-    return list.map((item) => fromJson(item)).toList();
   }
 }
