@@ -37,7 +37,7 @@ class _TextFieldContainerState extends State<TextFieldContainer> {
               bottom:   5),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors. black.withOpacity(0.15),
+              color: Colors.white,
               border: Border.all(color: Colors. black12),
               borderRadius: BorderRadius.circular(  15),
             ),

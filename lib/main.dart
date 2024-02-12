@@ -11,6 +11,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:intl/intl.dart';
 import 'package:upi_payment_qrcode_generator/upi_payment_qrcode_generator.dart';
 import 'firebase_options.dart';
+import 'homePage.dart';
 import 'test.dart';
 import 'test2.dart';
 import 'textField.dart';
@@ -36,7 +37,8 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: MyHomePage(
+      home: HomePage(
+        products: [],
       ),
     );
   }
@@ -161,8 +163,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int IconIndex = 0;
-  bool isReadyForPayment =false;
+  int IconIndex = 1;
+  bool isReadyForPayment = false;
   double totalCost = 0.0;
   final DatabaseReference _databaseReference = FirebaseDatabase.instance.ref();
 
@@ -175,7 +177,7 @@ class _HomePageState extends State<HomePage> {
 
         if (cartString != even) {
           for (subjectConvertor x in widget.products) {
-            if (x.barCode == even.split(";").last.trim()) {
+            if (x.barCode.trim() == even.split(";").last.trim()) {
               cart.add(x);
             }
           }
@@ -199,16 +201,7 @@ class _HomePageState extends State<HomePage> {
   TextEditingController HeadingController = TextEditingController();
   List<subjectConvertor> cart = [];
   String cartString = '';
-  subjectConvertor search = subjectConvertor(
-      barCode: "",
-      id: "",
-      image: "",
-      address: "",
-      discount: 0,
-      price: 0,
-      quantity: 0,
-      weight: 0,
-      projectName: "");
+
   List<int> discount = [2, 3, 5, 7, 10, 20, 30, 50, 70, 90];
   int discountIndex = 0;
 
@@ -216,7 +209,7 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     Timer.periodic(Duration(seconds: 1), (timer) {
-      // setupDataChangeListener();
+      setupDataChangeListener();
     });
   }
 
@@ -253,7 +246,7 @@ class _HomePageState extends State<HomePage> {
                               decoration: InputDecoration(
                                   border: InputBorder.none,
                                   hintText: 'Search Here',
-                                  hintStyle: TextStyle(color: Colors.black54)),
+                                  hintStyle: TextStyle(color: Colors.black87)),
                             ),
                           ),
                         ),
@@ -297,6 +290,7 @@ class _HomePageState extends State<HomePage> {
                                   setState(() {
                                     IconIndex = 3;
                                   });
+                                  _databaseReference.child("updated").set('');
                                 },
                                 child: buildButtons("Finish", Colors.green)),
                           ],
@@ -350,19 +344,37 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       if (IconIndex == 0)
                         Container(
-                          color: Colors.black26,
+                          color: Colors.black,
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 10.0),
                             child: Row(
                               children: [
-                                Expanded(child: Center(child: Text("No."))),
                                 Expanded(
-                                    flex: 5, child: Text("  Product Name")),
-                                Expanded(child: Center(child: Text("Price"))),
+                                    child: Center(
+                                        child: Text(
+                                  "No.",
+                                  style: TextStyle(color: Colors.white),
+                                ))),
                                 Expanded(
-                                    child: Center(child: Text("Discount"))),
+                                    flex: 5,
+                                    child: Text(
+                                      "  Product Name",
+                                      style: TextStyle(color: Colors.white),
+                                    )),
                                 Expanded(
-                                    flex: 2,
+                                    child: Center(
+                                        child: Text(
+                                  "Price",
+                                  style: TextStyle(color: Colors.white),
+                                ))),
+                                Expanded(
+                                    child: Center(
+                                        child: Text(
+                                  "Discount",
+                                  style: TextStyle(color: Colors.white),
+                                ))),
+                                Expanded(
+                                    flex: 1,
                                     child: Row(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
@@ -370,10 +382,19 @@ class _HomePageState extends State<HomePage> {
                                           CrossAxisAlignment.center,
                                       children: [
                                         Icon(Icons.add_shopping_cart),
-                                        Text(" Quantity"),
+                                        Text(
+                                          " Quantity",
+                                          style: TextStyle(color: Colors.white),
+                                        ),
                                       ],
                                     )),
-                                Expanded(child: Center(child: Text("Total"))),
+                                Expanded(
+                                    flex: 2,
+                                    child: Center(
+                                        child: Text(
+                                      "Total",
+                                      style: TextStyle(color: Colors.white),
+                                    ))),
                               ],
                             ),
                           ),
@@ -387,50 +408,101 @@ class _HomePageState extends State<HomePage> {
                                   physics: NeverScrollableScrollPhysics(),
                                   shrinkWrap: true,
                                   itemCount: cart.length,
+
                                   itemBuilder: (context, int index) {
                                     final data = cart[index];
                                     return Padding(
                                       padding: const EdgeInsets.symmetric(
-                                          vertical: 10.0),
+                                          vertical: 5.0),
                                       child: Row(
                                         children: [
                                           Expanded(
                                               child: Center(
-                                                  child:
-                                                      Text("${index + 1}."))),
+                                                  child: Text("${index + 1}."))),
                                           Expanded(
                                               flex: 5,
-                                              child: Text(
-                                                  "  ${data.projectName}")),
+                                              child: Column(
+                                                mainAxisAlignment: MainAxisAlignment.start,
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    "  ${data.projectName}",
+                                                    style: TextStyle(
+                                                        fontSize: 22,
+                                                        fontWeight:
+                                                            FontWeight.w700),
+                                                  ),
+                                                  Padding(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 10.0),
+                                                    child: Row(
+                                                      mainAxisAlignment: MainAxisAlignment.end,
+                                                      children: [
+
+                                                        Container(
+                                                            padding: EdgeInsets
+                                                                .symmetric(
+                                                                    vertical: 3,
+                                                                    horizontal:
+                                                                        8),
+                                                            decoration: BoxDecoration(
+                                                                color:
+                                                                    Colors.black,
+                                                                borderRadius:
+                                                                    BorderRadius
+                                                                        .circular(
+                                                                            20)),
+                                                            child: Row(
+                                                              children: [
+                                                                Text(
+                                                                  "Bar Code : ${data.barCode}",
+                                                                  style: TextStyle(
+                                                                      fontSize: 16,
+                                                                      color: Colors.white.withOpacity(0.9),
+                                                                      fontWeight:
+                                                                      FontWeight
+                                                                          .w500),
+                                                                ),
+                                                                Container(margin: EdgeInsets.symmetric(horizontal: 10,vertical: 3),height: 20,width: 2,color: Colors.white54,),
+                                                                Text(
+                                                                  "wt : ${data.weight}",
+                                                                  style: TextStyle(
+                                                                      fontSize: 16,
+                                                                      color: Colors.white,
+                                                                      fontWeight:
+                                                                          FontWeight
+                                                                              .w500),
+                                                                ),
+                                                              ],
+                                                            )),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              )),
                                           Expanded(
                                               child: Center(
-                                                  child:
-                                                      Text("${data.price}"))),
+                                                  child: Text("${data.price}", style: TextStyle(fontSize: 20),))),
                                           Expanded(
                                               child: Center(
                                                   child: Text(
                                                       "${data.discount}%"))),
                                           Expanded(
-                                              flex: 2,
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.center,
-                                                children: [
-                                                  Icon(Icons.remove_circle),
-                                                  Text(
-                                                    " 1 ",
-                                                    style:
-                                                        TextStyle(fontSize: 25),
-                                                  ),
-                                                  Icon(Icons.add_circle),
-                                                ],
-                                              )),
+                                              child: Center(
+                                            child: Text(
+                                              " 1 ",
+                                              style: TextStyle(fontSize: 20),
+                                            ),
+                                          )),
                                           Expanded(
+                                              flex: 2,
                                               child: Center(
                                                   child: Text(
-                                                      "${data.price - (data.price * (data.discount / 100))}"))),
+                                                "${data.price - (data.price * (data.discount / 100))}",
+                                                style: TextStyle(
+                                                    fontSize: 20,
+                                                    fontWeight:
+                                                        FontWeight.w500),
+                                              ))),
                                         ],
                                       ),
                                     );
@@ -442,172 +514,31 @@ class _HomePageState extends State<HomePage> {
                         ),
                       if (IconIndex == 1)
                         Expanded(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: SingleChildScrollView(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.start,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      ListView.builder(
-                                        physics: NeverScrollableScrollPhysics(),
-                                        shrinkWrap: true,
-                                        itemCount: widget.products!.length,
-                                        itemBuilder: (context, int index) {
-                                          final data = widget.products[index];
-                                          return data.projectName
-                                                      .toLowerCase()
-                                                      .startsWith(
-                                                          HeadingController.text
-                                                              .toLowerCase()) ||
-                                                  data.projectName
-                                                      .toLowerCase()
-                                                      .contains(
-                                                          HeadingController.text
-                                                              .toLowerCase())
-                                              ? InkWell(
-                                                  onTap: () {
-                                                    setState(() {
-                                                      search = data;
-                                                    });
-                                                  },
-                                                  child: Padding(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        vertical: 10.0),
-                                                    child: Padding(
-                                                      padding: const EdgeInsets
-                                                          .symmetric(
-                                                          horizontal: 20.0),
-                                                      child: Row(
-                                                        children: [
-                                                          Expanded(
-                                                              child: Text(
-                                                            data.projectName,
-                                                            style: TextStyle(
-                                                                fontSize: 20),
-                                                          )),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                )
-                                              : Container();
-                                        },
-                                      ),
-                                    ],
-                                  ),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                ListView.builder(
+                                  physics: NeverScrollableScrollPhysics(),
+shrinkWrap: true,
+                                  itemCount: widget.products!.length,
+                                  itemBuilder: (context, int index) {
+                                    final data = widget.products[index];
+                                    return data.projectName
+                                        .toLowerCase()
+                                        .startsWith(
+                                        HeadingController.text
+                                            .toLowerCase()) ||
+                                        data.projectName
+                                            .toLowerCase()
+                                            .contains(
+                                            HeadingController.text
+                                                .toLowerCase())
+                                        ? searchBarData(data: data)
+                                        : Container();
+                                  },
                                 ),
-                              ),
-                              if (search.id.isNotEmpty)
-                                Expanded(
-                                    child: Container(
-                                  color: Colors.blueGrey.withOpacity(0.1),
-                                  height: double.infinity,
-                                  child: SingleChildScrollView(
-                                    child: Column(
-                                      children: [
-                                        Padding(
-                                          padding: const EdgeInsets.all(10.0),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Text(
-                                                search.projectName,
-                                                style: TextStyle(fontSize: 30),
-                                              ),
-                                              InkWell(
-                                                  onTap: () {
-                                                    setState(() {
-                                                      search = subjectConvertor(
-                                                          barCode: "",
-                                                          id: "",
-                                                          image: "",
-                                                          address: "",
-                                                          discount: 0,
-                                                          price: 0,
-                                                          quantity: 0,
-                                                          weight: 0,
-                                                          projectName: "");
-                                                    });
-                                                  },
-                                                  child: Icon(
-                                                    Icons.close,
-                                                    size: 50,
-                                                  ))
-                                            ],
-                                          ),
-                                        ),
-                                        Image.network(search.image),
-                                        Container(
-                                          width: double.infinity,
-                                          margin: EdgeInsets.symmetric(
-                                              vertical: 20, horizontal: 10),
-                                          padding: EdgeInsets.symmetric(
-                                              vertical: 20, horizontal: 10),
-                                          decoration: BoxDecoration(
-                                              color: Colors.greenAccent
-                                                  .withOpacity(0.3),
-                                              borderRadius:
-                                                  BorderRadius.circular(20)),
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.start,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                "Original Price : ${search.price}",
-                                                style: TextStyle(fontSize: 25),
-                                              ),
-                                              Text(
-                                                "Discount         : ${search.discount}",
-                                                style: TextStyle(fontSize: 25),
-                                              ),
-                                              Text(
-                                                "Final Price      : ${search.price - (search.price * (search.discount / 100))}",
-                                                style: TextStyle(fontSize: 25),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Container(
-                                          width: double.infinity,
-                                          margin: EdgeInsets.symmetric(
-                                              vertical: 20, horizontal: 10),
-                                          padding: EdgeInsets.symmetric(
-                                              vertical: 10, horizontal: 10),
-                                          decoration: BoxDecoration(
-                                              color: Colors.black12,
-                                              borderRadius:
-                                                  BorderRadius.circular(20)),
-                                          child: Column(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.start,
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                "Location",
-                                                style: TextStyle(fontSize: 25),
-                                              ),
-                                              Text(
-                                                "${search.address}",
-                                                style: TextStyle(fontSize: 25),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ))
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       if (IconIndex == 2)
@@ -694,14 +625,11 @@ class _HomePageState extends State<HomePage> {
                                                     .toLowerCase()
                                                     .contains(HeadingController
                                                         .text
-                                                        .toLowerCase())) &&(
-                                            discountIndex <= data.discount)&&(data.discount>0)
+                                                        .toLowerCase())) &&
+                                            (discountIndex <= data.discount) &&
+                                            (data.discount > 0)
                                         ? InkWell(
-                                            onTap: () {
-                                              setState(() {
-                                                search = data;
-                                              });
-                                            },
+
                                             child: Padding(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -713,15 +641,17 @@ class _HomePageState extends State<HomePage> {
                                                 child: Row(
                                                   children: [
                                                     Expanded(
-                                                      flex:2,
+                                                        flex: 2,
                                                         child: Text(
-                                                      data.projectName,
-                                                      style: TextStyle(
-                                                          fontSize: 20),
-                                                    )),
+                                                          data.projectName,
+                                                          style: TextStyle(
+                                                              fontSize: 20),
+                                                        )),
                                                     Expanded(
                                                         child: Text(
-                                                          data.discount==0?"":"${data.discount} %",
+                                                      data.discount == 0
+                                                          ? ""
+                                                          : "${data.discount} %",
                                                       style: TextStyle(
                                                           fontSize: 20),
                                                     )),
@@ -778,29 +708,36 @@ class _HomePageState extends State<HomePage> {
                                             ),
                                           ),
                                         ),
-                                        if(isReadyForPayment)Column(
-                                          children: [
-
-                                            const SizedBox(
-                                              height: 20,
-                                            ),
-                                            const Text("UPI Payment QRCode with Amount",
-                                                style: TextStyle(fontWeight: FontWeight.bold)),
-                                            UPIPaymentQRCode(
-                                              upiDetails: UPIDetails(
-                                                  upiID: "8599988222@ybl",
-                                                  payeeName: "Sujith Nimmala",
-                                                  amount: totalCost,
-                                                  transactionNote: "Shopping Bill"),
-                                              size: 220,
-                                              upiQRErrorCorrectLevel: UPIQRErrorCorrectLevel.low,
-                                            ),
-                                            Text(
-                                              "Scan QR to Pay",
-                                              style: TextStyle(color: Colors.grey[600], letterSpacing: 1.2),
-                                            ),
-                                          ],
-                                        )
+                                        if (isReadyForPayment)
+                                          Column(
+                                            children: [
+                                              const SizedBox(
+                                                height: 20,
+                                              ),
+                                              const Text(
+                                                  "UPI Payment QRCode with Amount",
+                                                  style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold)),
+                                              UPIPaymentQRCode(
+                                                upiDetails: UPIDetails(
+                                                    upiID: "8599988222@ybl",
+                                                    payeeName: "Sujith Nimmala",
+                                                    amount: totalCost,
+                                                    transactionNote:
+                                                        "Shopping Bill"),
+                                                size: 220,
+                                                upiQRErrorCorrectLevel:
+                                                    UPIQRErrorCorrectLevel.low,
+                                              ),
+                                              Text(
+                                                "Scan QR to Pay",
+                                                style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                    letterSpacing: 1.2),
+                                              ),
+                                            ],
+                                          )
                                       ],
                                     ),
                                     Expanded(
@@ -816,44 +753,66 @@ class _HomePageState extends State<HomePage> {
                                               color: Colors.black
                                                   .withOpacity(0.08),
                                               borderRadius:
-                                              BorderRadius.circular(30)),
+                                                  BorderRadius.circular(30)),
                                           child: Column(
-                                            mainAxisAlignment: MainAxisAlignment.start,
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.start,
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
                                             children: [
-                                              Text("Total Cost : ${totalCost}",style: TextStyle(fontSize: 30,fontWeight: FontWeight.w500),),
-                                              Text("Quantity    : ${cart.length}",style: TextStyle(fontSize: 30),),
-                                              Text("Saved        : --",style: TextStyle(fontSize: 30),)
+                                              Text(
+                                                "Total Cost : ${totalCost}",
+                                                style: TextStyle(
+                                                    fontSize: 30,
+                                                    fontWeight:
+                                                        FontWeight.w500),
+                                              ),
+                                              Text(
+                                                "Quantity    : ${cart.length}",
+                                                style: TextStyle(fontSize: 30),
+                                              ),
+                                              Text(
+                                                "Saved        : --",
+                                                style: TextStyle(fontSize: 30),
+                                              )
                                             ],
                                           ),
                                         ),
                                         Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
                                           children: [
                                             InkWell(
                                               onTap: () {
-                                            setState(() {
-                                              isReadyForPayment = true;
-                                            });
+                                                setState(() {
+                                                  isReadyForPayment = true;
+                                                });
+                                                _databaseReference
+                                                    .child("updated")
+                                                    .set("");
                                               },
                                               child: Container(
                                                 padding: EdgeInsets.symmetric(
-                                                    vertical: 10, horizontal: 25),
+                                                    vertical: 10,
+                                                    horizontal: 25),
                                                 margin: EdgeInsets.symmetric(
-                                                    vertical: 5, horizontal: 10),
+                                                    vertical: 5,
+                                                    horizontal: 10),
                                                 decoration: BoxDecoration(
                                                     color: Colors.blue
                                                         .withOpacity(0.3),
                                                     borderRadius:
-                                                        BorderRadius.circular(10)),
+                                                        BorderRadius.circular(
+                                                            10)),
                                                 child: Row(
                                                   children: [
                                                     Icon(Icons.payments),
                                                     Text(
                                                       "Generate Bill",
-                                                      style:
-                                                          TextStyle(fontSize: 30),
+                                                      style: TextStyle(
+                                                          fontSize: 30),
                                                     ),
                                                   ],
                                                 ),
@@ -877,6 +836,34 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
+      floatingActionButton: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Container(
+            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 15),
+            decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30), color: Colors.black87),
+
+            child: Row(
+              children: [
+                if(IconIndex==0)Text(
+                  "Remove Product",
+                  style: TextStyle(color: Colors.white, fontSize: 25),
+                ),
+                if(IconIndex==1)Row(
+                  children: [
+                    Icon(Icons.filter_list,size: 30,color: Colors.white,),
+                    Text(
+                      " Filter",
+                      style: TextStyle(color: Colors.white, fontSize: 25),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -885,11 +872,10 @@ class _HomePageState extends State<HomePage> {
       padding: EdgeInsets.symmetric(vertical: 5, horizontal: 15),
       margin: EdgeInsets.symmetric(vertical: 5, horizontal: 5),
       decoration: BoxDecoration(
-          color: colors.withOpacity(0.8),
-          borderRadius: BorderRadius.circular(25)),
+          color: Colors.white, borderRadius: BorderRadius.circular(25)),
       child: Text(
         text,
-        style: TextStyle(fontSize: 25),
+        style: TextStyle(fontSize: 25, color: colors.withOpacity(0.8)),
       ),
     );
   }
