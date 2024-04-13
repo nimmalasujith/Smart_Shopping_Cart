@@ -1,27 +1,24 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
-
 import 'dart:async';
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'dart:convert';
+import 'package:carousel_slider/carousel_slider.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/message_format.dart';
+import 'package:new_virtual_keyboard/virtual_keyboard.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:flutter/widgets.dart';
 import 'package:intl/intl.dart';
 import 'package:upi_payment_qrcode_generator/upi_payment_qrcode_generator.dart';
-import 'firebase_options.dart';
 import 'homePage.dart';
 import 'test.dart';
-import 'test2.dart';
 import 'textField.dart';
 
-Future<void> main() async {
+main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.manual, overlays: []);
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersive, overlays: []);
 
   runApp(MyApp());
 }
@@ -32,14 +29,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Smart Shopping Cart',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: HomePage(
-        products: [],
-      ),
+      home: MyHomePage(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
@@ -51,33 +47,28 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> {
   getData() async {
+    var url =
+        "https://firestore.googleapis.com/v1/projects/emartbtechproject/databases/(default)/documents/products";
+    List<SubjectConvertor> projects = [];
     try {
-      final collectionSnapshot =
-          await FirebaseFirestore.instance.collection("products").get();
-
-      if (collectionSnapshot.docs.isNotEmpty) {
-        try {
-          List<subjectConvertor> subjects = collectionSnapshot.docs
-              .map((doc) => subjectConvertor.fromJson(doc.data()))
-              .toList();
-          print(subjects.toList());
-          Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => HomePage(
-                        products: subjects,
-                      )));
-        } catch (e) {
-          print(e);
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        var collectionData = json.decode(response.body);
+        for (var data in collectionData['documents']) {
+          projects.add(SubjectConvertor.fromJson(data['fields']));
         }
+        Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (context) => HomePage(
+                      products: projects,
+                    )));
+      } else {
+        print('Failed to fetch collection: ${response.statusCode}');
       }
-    } catch (e) {}
-  }
-
-  showText(String text) {
-    Fluttertoast.showToast(
-      msg: text,
-    );
+    } catch (e) {
+      print('Exception occurred: $e');
+    }
   }
 
   @override
@@ -88,25 +79,6 @@ class _MyHomePageState extends State<MyHomePage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: <Widget>[
               InkWell(
-                // onTap: () async {
-                //   String id = getID();
-                //   await FirebaseFirestore.instance
-                //       .collection('products')
-                //       .doc(id)
-                //       .set(
-                //         subjectConvertor(
-                //           image: "",
-                //           barCode: '',
-                //           discount: 0.0,
-                //           price: 0,
-                //           quantity: 0,
-                //           weight: 0.0,
-                //           projectName: '',
-                //           id: id,
-                //           address: '',
-                //         ).toJson(),
-                //       );
-                // },
                 child: Text(
                   "Welcome To E-Mart",
                   style: TextStyle(fontSize: 40),
@@ -148,13 +120,12 @@ class _MyHomePageState extends State<MyHomePage> {
               },
             ),
           ],
-        ) // This trailing comma makes auto-formatting nicer for build methods.
-        );
+        ));
   }
 }
 
 class HomePage extends StatefulWidget {
-  List<subjectConvertor> products;
+  List<SubjectConvertor> products;
 
   HomePage({required this.products});
 
@@ -163,54 +134,119 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int IconIndex = 1;
+  int IconIndex = 0;
   bool isReadyForPayment = false;
   double totalCost = 0.0;
-  final DatabaseReference _databaseReference = FirebaseDatabase.instance.ref();
-
-  Future<void> setupDataChangeListener() async {
-    try {
-      var event = await _databaseReference.child("updated").get();
-
-      if (event.exists) {
-        String even = event.value.toString();
-
-        if (cartString != even) {
-          for (subjectConvertor x in widget.products) {
-            if (x.barCode.trim() == even.split(";").last.trim()) {
-              cart.add(x);
-            }
-          }
-          for (subjectConvertor data in cart) {
-            totalCost += data.price - (data.price * (data.discount / 100));
-          }
-
-          setState(() {
-            cartString = even;
-          });
-        }
-      } else {
-        print("Snapshot does not exist");
-      }
-    } catch (e) {
-      // Handle any errors that might occur during the database operation
-      print("Error fetching data: $e");
-    }
-  }
-
+  double weight = 0;
   TextEditingController HeadingController = TextEditingController();
-  List<subjectConvertor> cart = [];
+  List<SubjectConvertor> cart = [];
   String cartString = '';
 
   List<int> discount = [2, 3, 5, 7, 10, 20, 30, 50, 70, 90];
   int discountIndex = 0;
+  bool removeItem = false;
+  late io.Socket socket;
+  bool isOpened = false;
+
+  void connectToServer() {
+    socket = io.io(
+      'http://127.0.0.1:8000',
+      io.OptionBuilder().setTransports(['websocket']).build(),
+    );
+
+    socket.onConnect((_) {
+      print('Connected to server');
+    });
+    socket.on('string_weight', (e) {
+      double even  = double.parse(e);
+      print(even);
+      double weight =
+          cart.fold(0.0, (sum, item) => sum + item.weight * item.quantity);
+      if (!((even - 100) < weight && weight < (even + 200)) && !isOpened) {
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: contentBoxForWeight(context, !(weight < (even + 200))),
+            );
+          },
+        );
+        setState(() {
+          isOpened = true;
+        });
+      } else if (((even - 100) < weight && weight < (even + 200)) &&
+          isOpened) {
+        Navigator.pop(context);
+        setState(() {
+          isOpened = false;
+        });
+      }
+    });
+    socket.on('string_data', (even) {
+      if (cartString != even) {
+        for (SubjectConvertor x in widget.products) {
+          if (x.barCode.trim() == even.split(";").last.trim()) {
+            if (removeItem && cart.contains(x)) {
+              if (x.quantity == 1) {
+                cart.remove(x);
+              } else {
+                cart.firstWhere((item) => item.barCode == x.barCode).quantity -=
+                    1;
+              }
+              Navigator.pop(context);
+              setState(() {
+                removeItem = false;
+              });
+            } else if (cart.contains(x)) {
+              cart.firstWhere((item) => item.barCode == x.barCode).quantity +=
+                  1;
+            } else {
+              cart.add(x);
+            }
+          }
+        }
+        totalCost = cart.fold(
+          0.0,
+          (sum, item) =>
+              sum +
+              (item.quantity * item.price -
+                  (item.quantity * item.price * (item.discount / 100))),
+        );
+        setState(() {
+          totalCost;
+          cart;
+          cartString = even;
+        });
+      }
+    });
+
+    socket.onError((error) {
+      print('Socket connection error: $error');
+    });
+
+    socket.onDisconnect((_) {
+      print('Socket disconnected');
+    });
+    socket.connect();
+  }
+
+  String enteredText = '';
 
   @override
   void initState() {
     super.initState();
-    Timer.periodic(Duration(seconds: 1), (timer) {
-      setupDataChangeListener();
-    });
+    connectToServer();
+  }
+
+  @override
+  void dispose() {
+    socket.dispose();
+    super.dispose();
   }
 
   @override
@@ -235,14 +271,11 @@ class _HomePageState extends State<HomePage> {
                       if (IconIndex == 1 || IconIndex == 2)
                         Expanded(
                           child: TextFieldContainer(
-                            child: TextFormField(
+                            child: TextField(
                               controller: HeadingController,
                               textInputAction: TextInputAction.next,
                               style:
                                   TextStyle(color: Colors.black, fontSize: 20),
-                              onChanged: (value) {
-                                setState(() {});
-                              },
                               decoration: InputDecoration(
                                   border: InputBorder.none,
                                   hintText: 'Search Here',
@@ -270,7 +303,7 @@ class _HomePageState extends State<HomePage> {
                       Row(
                         children: [
                           Text(
-                            "Quantity : ${cart.length}  ",
+                            "Qty : ${cart.fold(0, (sum, item) => sum + item.quantity)}  ",
                             style: TextStyle(fontSize: 30),
                           ),
                           Text(
@@ -284,13 +317,153 @@ class _HomePageState extends State<HomePage> {
                         padding: const EdgeInsets.symmetric(horizontal: 10.0),
                         child: Row(
                           children: [
-                            buildButtons("Cancel", Colors.red),
+                            InkWell(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (BuildContext context) {
+                                      return Dialog(
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(16.0),
+                                        ),
+                                        elevation: 0,
+                                        backgroundColor: Colors.transparent,
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.center,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.center,
+                                              children: [
+                                                Container(
+                                                  padding: EdgeInsets.all(20),
+                                                  decoration: BoxDecoration(
+                                                      color: Colors.white,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              10)),
+                                                  child: Column(
+                                                    children: [
+                                                      Padding(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .all(8.0),
+                                                        child: Text(
+                                                          "Do You Want To Close Shopping?",
+                                                          style: TextStyle(
+                                                              fontSize: 35),
+                                                        ),
+                                                      ),
+                                                      Row(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .center,
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .center,
+                                                        children: [
+                                                          InkWell(
+                                                              onTap: () {
+                                                                Navigator.pop(
+                                                                    context);
+                                                              },
+                                                              child: Container(
+                                                                padding: EdgeInsets
+                                                                    .symmetric(
+                                                                        vertical:
+                                                                            10,
+                                                                        horizontal:
+                                                                            35),
+                                                                margin: EdgeInsets
+                                                                    .symmetric(
+                                                                        vertical:
+                                                                            5,
+                                                                        horizontal:
+                                                                            5),
+                                                                decoration: BoxDecoration(
+                                                                    color: Colors
+                                                                        .black,
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                            25)),
+                                                                child: Text(
+                                                                  "No",
+                                                                  style: TextStyle(
+                                                                      fontSize:
+                                                                          25,
+                                                                      color: Colors
+                                                                          .greenAccent
+                                                                          .withOpacity(
+                                                                              0.8)),
+                                                                ),
+                                                              )),
+                                                          InkWell(
+                                                              onTap: () {
+                                                                Navigator.pop(
+                                                                    context);
+                                                                Navigator.pop(
+                                                                    context);
+                                                                cart.clear();
+                                                              },
+                                                              child: Container(
+                                                                padding: EdgeInsets
+                                                                    .symmetric(
+                                                                        vertical:
+                                                                            10,
+                                                                        horizontal:
+                                                                            35),
+                                                                margin: EdgeInsets
+                                                                    .only(
+                                                                        top: 5,
+                                                                        bottom:
+                                                                            5,
+                                                                        left:
+                                                                            10,
+                                                                        right:
+                                                                            30),
+                                                                decoration: BoxDecoration(
+                                                                    color: Colors
+                                                                        .black,
+                                                                    borderRadius:
+                                                                        BorderRadius.circular(
+                                                                            25)),
+                                                                child: Text(
+                                                                  "Yes",
+                                                                  style: TextStyle(
+                                                                      fontSize:
+                                                                          25,
+                                                                      color: Colors
+                                                                          .red
+                                                                          .withOpacity(
+                                                                              0.8)),
+                                                                ),
+                                                              )),
+                                                        ],
+                                                      )
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                                child: buildButtons("Cancel", Colors.red)),
                             InkWell(
                                 onTap: () {
                                   setState(() {
                                     IconIndex = 3;
                                   });
-                                  _databaseReference.child("updated").set('');
+                                  // _databaseReference.child("updated").set('');
                                 },
                                 child: buildButtons("Finish", Colors.green)),
                           ],
@@ -334,6 +507,11 @@ class _HomePageState extends State<HomePage> {
                                 3,
                                 Icons.exit_to_app,
                                 'Exit',
+                              ),
+                              buildIcons(
+                                4,
+                                Icons.feed,
+                                '"FeedBack"',
                               ),
                             ],
                           ),
@@ -381,9 +559,12 @@ class _HomePageState extends State<HomePage> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.center,
                                       children: [
-                                        Icon(Icons.add_shopping_cart),
+                                        Icon(
+                                          Icons.add_shopping_cart,
+                                          color: Colors.white,
+                                        ),
                                         Text(
-                                          " Quantity",
+                                          "Qty",
                                           style: TextStyle(color: Colors.white),
                                         ),
                                       ],
@@ -404,110 +585,161 @@ class _HomePageState extends State<HomePage> {
                           child: SingleChildScrollView(
                             child: Column(
                               children: [
-                                ListView.builder(
-                                  physics: NeverScrollableScrollPhysics(),
-                                  shrinkWrap: true,
-                                  itemCount: cart.length,
-
-                                  itemBuilder: (context, int index) {
-                                    final data = cart[index];
-                                    return Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 5.0),
-                                      child: Row(
-                                        children: [
-                                          Expanded(
-                                              child: Center(
-                                                  child: Text("${index + 1}."))),
-                                          Expanded(
-                                              flex: 5,
-                                              child: Column(
-                                                mainAxisAlignment: MainAxisAlignment.start,
-                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                if (cart.isNotEmpty)
+                                  ListView.builder(
+                                    physics: NeverScrollableScrollPhysics(),
+                                    shrinkWrap: true,
+                                    itemCount: cart.length,
+                                    reverse: true,
+                                    itemBuilder: (context, int index) {
+                                      final data = cart[index];
+                                      return data.projectName.isNotEmpty
+                                          ? Padding(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      vertical: 5.0),
+                                              child: Row(
                                                 children: [
-                                                  Text(
-                                                    "  ${data.projectName}",
-                                                    style: TextStyle(
-                                                        fontSize: 22,
-                                                        fontWeight:
-                                                            FontWeight.w700),
-                                                  ),
-                                                  Padding(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                                                    child: Row(
-                                                      mainAxisAlignment: MainAxisAlignment.end,
-                                                      children: [
-
-                                                        Container(
-                                                            padding: EdgeInsets
-                                                                .symmetric(
-                                                                    vertical: 3,
+                                                  Expanded(
+                                                      child: Center(
+                                                          child: Text(
+                                                              "${index + 1}."))),
+                                                  Expanded(
+                                                      flex: 5,
+                                                      child: Column(
+                                                        mainAxisAlignment:
+                                                            MainAxisAlignment
+                                                                .start,
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .start,
+                                                        children: [
+                                                          Text(
+                                                            "  ${data.projectName}",
+                                                            style: TextStyle(
+                                                                fontSize: 22,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w700),
+                                                          ),
+                                                          Padding(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .symmetric(
                                                                     horizontal:
-                                                                        8),
-                                                            decoration: BoxDecoration(
-                                                                color:
-                                                                    Colors.black,
-                                                                borderRadius:
-                                                                    BorderRadius
-                                                                        .circular(
-                                                                            20)),
+                                                                        10.0),
                                                             child: Row(
+                                                              mainAxisAlignment:
+                                                                  MainAxisAlignment
+                                                                      .end,
                                                               children: [
-                                                                Text(
-                                                                  "Bar Code : ${data.barCode}",
-                                                                  style: TextStyle(
-                                                                      fontSize: 16,
-                                                                      color: Colors.white.withOpacity(0.9),
-                                                                      fontWeight:
-                                                                      FontWeight
-                                                                          .w500),
-                                                                ),
-                                                                Container(margin: EdgeInsets.symmetric(horizontal: 10,vertical: 3),height: 20,width: 2,color: Colors.white54,),
-                                                                Text(
-                                                                  "wt : ${data.weight}",
-                                                                  style: TextStyle(
-                                                                      fontSize: 16,
-                                                                      color: Colors.white,
-                                                                      fontWeight:
-                                                                          FontWeight
-                                                                              .w500),
-                                                                ),
+                                                                Container(
+                                                                    padding: EdgeInsets.symmetric(
+                                                                        vertical:
+                                                                            3,
+                                                                        horizontal:
+                                                                            8),
+                                                                    decoration: BoxDecoration(
+                                                                        color: Colors
+                                                                            .black,
+                                                                        borderRadius:
+                                                                            BorderRadius.circular(20)),
+                                                                    child: Row(
+                                                                      children: [
+                                                                        Text(
+                                                                          "Bar Code : ${data.barCode}",
+                                                                          style: TextStyle(
+                                                                              fontSize: 16,
+                                                                              color: Colors.white.withOpacity(0.9),
+                                                                              fontWeight: FontWeight.w500),
+                                                                        ),
+                                                                        Container(
+                                                                          margin: EdgeInsets.symmetric(
+                                                                              horizontal: 10,
+                                                                              vertical: 3),
+                                                                          height:
+                                                                              20,
+                                                                          width:
+                                                                              2,
+                                                                          color:
+                                                                              Colors.white54,
+                                                                        ),
+                                                                        Text(
+                                                                          "wt : ${data.weight}",
+                                                                          style: TextStyle(
+                                                                              fontSize: 16,
+                                                                              color: Colors.white,
+                                                                              fontWeight: FontWeight.w500),
+                                                                        ),
+                                                                      ],
+                                                                    )),
                                                               ],
-                                                            )),
-                                                      ],
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      )),
+                                                  Expanded(
+                                                      child: Center(
+                                                          child: Text(
+                                                    "${data.price}",
+                                                    style:
+                                                        TextStyle(fontSize: 20),
+                                                  ))),
+                                                  Expanded(
+                                                      child: Center(
+                                                          child: Text(
+                                                    "${data.discount}%",
+                                                    style:
+                                                        TextStyle(fontSize: 20),
+                                                  ))),
+                                                  Expanded(
+                                                      child: Center(
+                                                    child: Text(
+                                                      "${data.quantity}",
+                                                      style: TextStyle(
+                                                          fontSize: 20),
                                                     ),
-                                                  ),
+                                                  )),
+                                                  Expanded(
+                                                      flex: 2,
+                                                      child: Center(
+                                                          child: Text(
+                                                        "${data.price - (data.price * (data.discount / 100))}",
+                                                        style: TextStyle(
+                                                            fontSize: 20,
+                                                            fontWeight:
+                                                                FontWeight
+                                                                    .w500),
+                                                      ))),
                                                 ],
-                                              )),
-                                          Expanded(
-                                              child: Center(
-                                                  child: Text("${data.price}", style: TextStyle(fontSize: 20),))),
-                                          Expanded(
-                                              child: Center(
-                                                  child: Text(
-                                                      "${data.discount}%"))),
-                                          Expanded(
-                                              child: Center(
-                                            child: Text(
-                                              " 1 ",
-                                              style: TextStyle(fontSize: 20),
-                                            ),
-                                          )),
-                                          Expanded(
-                                              flex: 2,
-                                              child: Center(
-                                                  child: Text(
-                                                "${data.price - (data.price * (data.discount / 100))}",
-                                                style: TextStyle(
-                                                    fontSize: 20,
-                                                    fontWeight:
-                                                        FontWeight.w500),
-                                              ))),
-                                        ],
-                                      ),
-                                    );
-                                  },
-                                ),
+                                              ),
+                                            )
+                                          : Container();
+                                    },
+                                  )
+                                else
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 50.0),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          "Scan Product To Add ",
+                                          style: TextStyle(
+                                              fontSize: 45,
+                                              fontWeight: FontWeight.w500),
+                                        ),
+                                        Icon(
+                                          Icons.arrow_circle_right,
+                                          size: 55,
+                                        )
+                                      ],
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -519,84 +751,23 @@ class _HomePageState extends State<HomePage> {
                               children: [
                                 ListView.builder(
                                   physics: NeverScrollableScrollPhysics(),
-shrinkWrap: true,
+                                  shrinkWrap: true,
                                   itemCount: widget.products!.length,
                                   itemBuilder: (context, int index) {
                                     final data = widget.products[index];
-                                    return data.projectName
-                                        .toLowerCase()
-                                        .startsWith(
-                                        HeadingController.text
-                                            .toLowerCase()) ||
-                                        data.projectName
-                                            .toLowerCase()
-                                            .contains(
-                                            HeadingController.text
-                                                .toLowerCase())
+                                    return (data.projectName
+                                                    .toLowerCase()
+                                                    .startsWith(
+                                                        HeadingController.text
+                                                            .toLowerCase()) ||
+                                                data.projectName
+                                                    .toLowerCase()
+                                                    .contains(HeadingController
+                                                        .text
+                                                        .toLowerCase())) &&
+                                            data.projectName.isNotEmpty
                                         ? searchBarData(data: data)
                                         : Container();
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      if (IconIndex == 2)
-                        SizedBox(
-                          height: 50,
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                if (discountIndex > 0)
-                                  InkWell(
-                                      onTap: () {
-                                        setState(() {
-                                          discountIndex = 0;
-                                        });
-                                      },
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: Icon(
-                                          Icons.close,
-                                          size: 40,
-                                          color: Colors.red,
-                                        ),
-                                      )),
-                                ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  shrinkWrap: true,
-                                  itemCount: discount.length,
-                                  itemBuilder: (context, int index) {
-                                    return InkWell(
-                                      onTap: () {
-                                        setState(() {
-                                          discountIndex = discount[index];
-                                        });
-                                      },
-                                      child: Container(
-                                        width: 200,
-                                        margin: EdgeInsets.symmetric(
-                                            vertical: 5, horizontal: 5),
-                                        padding: EdgeInsets.symmetric(
-                                            vertical: 3, horizontal: 10),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              discountIndex == discount[index]
-                                                  ? Colors.lightBlueAccent
-                                                      .withOpacity(0.3)
-                                                  : Colors.black12,
-                                          borderRadius:
-                                              BorderRadius.circular(15),
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            "Upto ${discount[index]}% off",
-                                            style: TextStyle(fontSize: 22),
-                                          ),
-                                        ),
-                                      ),
-                                    );
                                   },
                                 ),
                               ],
@@ -610,6 +781,71 @@ shrinkWrap: true,
                               mainAxisAlignment: MainAxisAlignment.start,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                SizedBox(
+                                  height: 50,
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Row(
+                                      children: [
+                                        if (discountIndex > 0)
+                                          InkWell(
+                                              onTap: () {
+                                                setState(() {
+                                                  discountIndex = 0;
+                                                });
+                                              },
+                                              child: Padding(
+                                                padding:
+                                                    const EdgeInsets.all(8.0),
+                                                child: Icon(
+                                                  Icons.close,
+                                                  size: 40,
+                                                  color: Colors.red,
+                                                ),
+                                              )),
+                                        ListView.builder(
+                                          scrollDirection: Axis.horizontal,
+                                          shrinkWrap: true,
+                                          itemCount: discount.length,
+                                          itemBuilder: (context, int index) {
+                                            return InkWell(
+                                              onTap: () {
+                                                setState(() {
+                                                  discountIndex =
+                                                      discount[index];
+                                                });
+                                              },
+                                              child: Container(
+                                                width: 200,
+                                                margin: EdgeInsets.symmetric(
+                                                    vertical: 5, horizontal: 5),
+                                                padding: EdgeInsets.symmetric(
+                                                    vertical: 3,
+                                                    horizontal: 10),
+                                                decoration: BoxDecoration(
+                                                  color: discountIndex ==
+                                                          discount[index]
+                                                      ? Colors.lightBlueAccent
+                                                          .withOpacity(0.3)
+                                                      : Colors.black12,
+                                                  borderRadius:
+                                                      BorderRadius.circular(15),
+                                                ),
+                                                child: Center(
+                                                  child: Text(
+                                                    "Upto ${discount[index]}% off",
+                                                    style:
+                                                        TextStyle(fontSize: 22),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
                                 ListView.builder(
                                   physics: NeverScrollableScrollPhysics(),
                                   shrinkWrap: true,
@@ -629,7 +865,6 @@ shrinkWrap: true,
                                             (discountIndex <= data.discount) &&
                                             (data.discount > 0)
                                         ? InkWell(
-
                                             child: Padding(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -768,11 +1003,11 @@ shrinkWrap: true,
                                                         FontWeight.w500),
                                               ),
                                               Text(
-                                                "Quantity    : ${cart.length}",
+                                                "Quantity    : ${cart.fold(0, (sum, item) => sum + item.quantity)}",
                                                 style: TextStyle(fontSize: 30),
                                               ),
                                               Text(
-                                                "Saved        : --",
+                                                "Saved        : ${cart.fold(0.0, (sum, item) => sum + (item.quantity * item.price)) - cart.fold(0.0, (sum, item) => sum + (item.quantity * item.price - (item.quantity * item.price * (item.discount / 100))))}",
                                                 style: TextStyle(fontSize: 30),
                                               )
                                             ],
@@ -789,9 +1024,9 @@ shrinkWrap: true,
                                                 setState(() {
                                                   isReadyForPayment = true;
                                                 });
-                                                _databaseReference
-                                                    .child("updated")
-                                                    .set("");
+                                                // _databaseReference
+                                                //     .child("updated")
+                                                //     .set("");
                                               },
                                               child: Container(
                                                 padding: EdgeInsets.symmetric(
@@ -828,6 +1063,94 @@ shrinkWrap: true,
                             ),
                           ),
                         ),
+                      if (IconIndex == 4)
+                        Expanded(
+                            child: SingleChildScrollView(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(10.0),
+                                child: Text(
+                                  "Feed Back Form",
+                                  style: TextStyle(fontSize: 30),
+                                ),
+                              ),
+                              TextFieldContainer(
+                                child: TextField(
+                                  maxLines: null,
+                                  controller: HeadingController,
+                                  textInputAction: TextInputAction.next,
+                                  style: TextStyle(
+                                      color: Colors.black, fontSize: 25),
+                                  decoration: InputDecoration(
+                                      border: InputBorder.none,
+                                      hintText: 'Share Your Points',
+                                      hintStyle:
+                                          TextStyle(color: Colors.black87)),
+                                ),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(
+                                  20.0,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    ElevatedButton(
+                                        onPressed: () async {
+                                          String id = getID();
+                                          final formData = FormConvertor(
+                                            id: id,
+
+                                            message: HeadingController.text,
+                                          );
+
+                                          try {
+                                            await formData
+                                                .uploadDataToFirestore(
+                                                    formData);
+                                            print(
+                                                'Data uploaded successfully!');
+                                            HeadingController.clear();
+
+                                          } catch (e) {
+                                            print('Error uploading data: $e');
+                                          }
+                                        },
+                                        child: Text("Submit Here"))
+                                  ],
+                                ),
+                              )
+                            ],
+                          ),
+                        )),
+                      if (IconIndex == 1 || IconIndex == 2 || IconIndex == 4)
+                        Container(
+                          // Keyboard is transparent
+                          color: Colors.white,
+                          child: VirtualKeyboard(
+                              fontSize: 20,
+                              type: VirtualKeyboardType.Alphanumeric,
+                              onKeyPress: (key) {
+                                print(key.text);
+                                if (key.text == null) {
+                                  setState(() {
+                                    if (enteredText.isNotEmpty) {
+                                      enteredText = enteredText.substring(
+                                          0, enteredText.length - 1);
+                                    }
+                                  });
+                                } else {
+                                  // Update the enteredText for other keys
+                                  setState(() {
+                                    enteredText += key.text;
+                                  });
+                                }
+                                HeadingController.text = enteredText;
+                              }),
+                        )
                     ],
                   ),
                 ),
@@ -843,28 +1166,327 @@ shrinkWrap: true,
             padding: EdgeInsets.symmetric(vertical: 8, horizontal: 15),
             decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(30), color: Colors.black87),
-
             child: Row(
               children: [
-                if(IconIndex==0)Text(
-                  "Remove Product",
-                  style: TextStyle(color: Colors.white, fontSize: 25),
-                ),
-                if(IconIndex==1)Row(
-                  children: [
-                    Icon(Icons.filter_list,size: 30,color: Colors.white,),
-                    Text(
-                      " Filter",
+                if (IconIndex == 0)
+                  InkWell(
+                    onTap: () {
+                      setState(() {
+                        removeItem = true;
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return RemoveItemBuild(context);
+                          },
+                        );
+                      });
+                    },
+                    child: Text(
+                      "Remove Product",
                       style: TextStyle(color: Colors.white, fontSize: 25),
                     ),
-                  ],
-                ),
+                  ),
+                if (IconIndex == 2)
+                  InkWell(
+                    onTap: () {
+                      getData();
+                    },
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.filter_list,
+                          size: 30,
+                          color: Colors.white,
+                        ),
+                        Text(
+                          " Today's Offers",
+                          style: TextStyle(color: Colors.white, fontSize: 25),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget contentBoxForWeight(BuildContext context, bool isMax) {
+    return Stack(
+      children: <Widget>[
+        Container(
+          padding: EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            shape: BoxShape.rectangle,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16.0),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black,
+                offset: Offset(0, 10),
+                blurRadius: 10.0,
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                isMax
+                    ? "PLEASE SCAN THE REMOVED PRODUCT or PLACE IT IN THE CART"
+                    : "PLEASE PLACE THE SCANNED PRODUCT",
+                style: TextStyle(fontSize: 40.0, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(
+                height: 50,
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: EdgeInsets.symmetric(vertical: 8, horizontal: 15),
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(30),
+                        color: Colors.black87),
+                    child: Row(
+                      children: [
+                        if (IconIndex == 0)
+                          InkWell(
+                            onTap: () {
+                              setState(() {
+                                removeItem = true;
+                                showDialog(
+                                  context: context,
+                                  builder: (BuildContext context) {
+                                    return RemoveItemBuild(context);
+                                  },
+                                );
+                              });
+                            },
+                            child: Text(
+                              "Remove Product",
+                              style:
+                                  TextStyle(color: Colors.white, fontSize: 25),
+                            ),
+                          ),
+                        if (IconIndex == 2)
+                          InkWell(
+                            onTap: () {
+                              getData();
+                            },
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.filter_list,
+                                  size: 30,
+                                  color: Colors.white,
+                                ),
+                                Text(
+                                  " Today's Offers",
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 25),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget RemoveItemBuild(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16.0),
+      ),
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      child: contentBox(context),
+    );
+  }
+
+  Widget contentBox(BuildContext context) {
+    return Stack(
+      children: <Widget>[
+        Container(
+          padding: EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            shape: BoxShape.rectangle,
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16.0),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black,
+                offset: Offset(0, 10),
+                blurRadius: 10.0,
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                height: 300,
+                width: 300,
+                decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    image: DecorationImage(
+                        image: AssetImage("assets/scanner.gif"))),
+              ),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: <Widget>[
+                    Text(
+                      "Scan Product To Remove From The List.",
+                      style: TextStyle(
+                          fontSize: 40.0, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 50.0),
+                    Align(
+                      alignment: Alignment.center,
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            removeItem = false;
+                          });
+                          Navigator.of(context).pop();
+                        },
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                              vertical: 10, horizontal: 50),
+                          decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(50),
+                              color: Colors.black87),
+                          child: Text(
+                            "Cancel",
+                            style: TextStyle(color: Colors.white, fontSize: 40),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<String> projects = [];
+
+  todayOff() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: EdgeInsets.only(left: 5, right: 5, top: 5, bottom: 30),
+                decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(20)),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        InkWell(
+                            onTap: () {
+                              Navigator.pop(context);
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 5.0, horizontal: 15),
+                              child: Icon(
+                                Icons.arrow_back,
+                                color: Colors.white,
+                                size: 40,
+                              ),
+                            )),
+                        Text(
+                          "Today Deals",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 30),
+                        )
+                      ],
+                    ),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: CarouselSlider(
+                          options: CarouselOptions(
+                              aspectRatio: 16 / 9,
+                              viewportFraction: 1,
+                              autoPlay: true),
+                          items: projects.map((item) {
+                            return Builder(
+                              builder: (BuildContext context) {
+                                return Image.network(
+                                  item,
+                                  fit: BoxFit.cover,
+                                );
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    )
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  getData() async {
+    var url =
+        "https://firestore.googleapis.com/v1/projects/emartbtechproject/databases/(default)/documents/todayProducts";
+
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        var collectionData = json.decode(response.body);
+        for (var data in collectionData['documents']) {
+          projects.add(data['fields']['imageUrl']['stringValue']);
+        }
+        setState(() {
+          projects;
+        });
+        todayOff();
+      } else {
+        print('Failed to fetch collection: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Exception occurred: $e');
+    }
   }
 
   Widget buildButtons(String text, Color colors) {
@@ -887,6 +1509,7 @@ shrinkWrap: true,
         setState(() {
           IconIndex = index;
         });
+        if (index == 2) getData();
       },
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 15.0),
@@ -910,4 +1533,28 @@ shrinkWrap: true,
 String getID() {
   var now = new DateTime.now();
   return DateFormat('d.M.y-kk:mm:ss').format(now);
+}
+
+class todayProductsConvertor {
+  final String imageUrl, id;
+
+  todayProductsConvertor({
+    required this.imageUrl,
+    required this.id,
+  });
+
+  Map<String, dynamic> toJson() => {
+        "id": id,
+        "imageUrl": imageUrl,
+      };
+
+  static todayProductsConvertor fromJson(Map<String, dynamic> json) =>
+      todayProductsConvertor(
+        id: json['id'] ?? "",
+        imageUrl: json['imageUrl'] ?? "",
+      );
+
+  static List<todayProductsConvertor> fromMapList(List<dynamic> list) {
+    return list.map((item) => fromJson(item)).toList();
+  }
 }

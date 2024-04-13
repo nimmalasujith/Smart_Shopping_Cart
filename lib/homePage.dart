@@ -1,23 +1,12 @@
 // ignore_for_file: prefer_const_constructors
 
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:smart_cart/test.dart';
 
-class FirebaseService {
-  DatabaseReference _databaseReference = FirebaseDatabase.instance.reference();
 
-  void setupDataChangeListener(Function(List<String>) onChanged) {
-    _databaseReference.child("updated").onChildChanged.listen((event) {
-      if (event.snapshot.value != null) {
-        String even = event.toString();
-      }
-    });
-  }
-}
 
 class searchBarData extends StatefulWidget {
-  subjectConvertor data;
+  SubjectConvertor data;
 
   searchBarData({required this.data});
 

@@ -19,20 +19,22 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.4 <4.0.0'
+  sdk: '>=3.2.3 <4.0.0'
 
 
 dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.2
-  shared_preferences: ^2.2.2
-  cloud_firestore: ^4.14.0
-  intl: ^0.19.0
-  fluttertoast: ^8.2.4
-  firebase_database: ^10.4.0
-  qr_code_scanner: ^1.0.1
-  upi_payment_qrcode_generator: ^1.4.0
+  shared_preferences:
+
+  intl:
+
+  upi_payment_qrcode_generator:
+  carousel_slider:
+  http:
+  socket_io_client:
+  new_virtual_keyboard:
 
 
 dev_dependencies:
@@ -44,3 +46,26 @@ dev_dependencies:
 flutter:
 
   uses-material-design: true
+  assets:
+    - assets/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
